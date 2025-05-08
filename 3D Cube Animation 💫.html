@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>इंटरैक्टिव 3D क्यूब एनीमेशन</title>
+    <style>
+        :root {
+            --cube-size: 300px;
+            --cube-size-small: 200px;
+            --half-size: calc(var(--cube-size) / 2);
+            --half-size-small: calc(var(--cube-size-small) / 2);
+            --perspective: 1500px;
+            --perspective-small: 1000px;
+            --rotation-speed: 15s; /* Slower base rotation */
+            --glow-color: rgba(255, 255, 255, 0.1);
+            --bg-gradient-start: #1f2833; /* Darker background */
+            --bg-gradient-end: #4f5a69;
+            --text-color: #e0e0e0;
+            --shadow-color: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Global Styles */
+        body {
+            margin: 0;
+            background: radial-gradient(ellipse at bottom, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Use min-height */
+            overflow: hidden;
+            font-family: 'Poppins', 'Noto Sans Devanagari', sans-serif;
+            color: var(--text-color);
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Noto+Sans+Devanagari&display=swap');
+
+
+        .title { /* Changed from h1 for more flexibility */
+            position: absolute;
+            top: 30px; /* Lowered slightly */
+            font-size: 2rem; /* Responsive font size */
+            text-shadow: 0 3px 8px var(--shadow-color);
+            text-align: center;
+            width: 90%;
+            letter-spacing: 1px;
+            pointer-events: none; /* Allow interaction below */
+            z-index: 10;
+        }
+
+        /* Scene for Perspective */
+        .scene {
+            width: var(--cube-size);
+            height: var(--cube-size);
+            perspective: var(--perspective);
+            position: relative; /* Needed for positioning controls */
+        }
+
+        /* Cube Styling */
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            /* Removed CSS animation - will be controlled by JS */
+            transition: transform 0.1s linear; /* Smooth transition for JS updates */
+            cursor: grab;
+        }
+         .cube:active {
+            cursor: grabbing;
+         }
+
+        /* Cube Faces */
+        .cube__face {
+            position: absolute;
+            width: var(--cube-size);
+            height: var(--cube-size);
+            border-radius: 20px; /* More rounded */
+            box-shadow: 0 10px 30px var(--shadow-color),
+                        inset 0 0 25px rgba(0,0,0,0.3); /* Inner shadow for depth */
+            display: flex;
+            flex-direction: column; /* Stack icon and text */
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem; /* Slightly smaller base text */
+            font-weight: 600;
+            color: var(--text-color);
+            backface-visibility: hidden; /* Hide back of faces */
+            border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
+            overflow: hidden; /* Needed for pseudo-elements */
+            transition: transform 0.4s ease-out, box-shadow 0.4s ease-out; /* Smooth hover */
+            user-select: none; /* Prevent text selection on drag */
+        }
+
+         /* Face Icons (using placeholder SVGs - replace with real ones or Font Awesome) */
+         .cube__face svg {
+            width: 30%;
+            height: 30%;
+            margin-bottom: 15px;
+            fill: var(--text-color);
+            opacity: 0.8;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+         }
+
+        /* Face Backgrounds & Positioning */
+        .cube__face--front  { background: linear-gradient(135deg, #e74c3c, #c0392b); transform: translateZ(var(--half-size)); }
+        .cube__face--back   { background: linear-gradient(135deg, #3498db, #2980b9); transform: rotateY(180deg) translateZ(var(--half-size)); }
+        .cube__face--right  { background: linear-gradient(135deg, #2ecc71, #27ae60); transform: rotateY(90deg) translateZ(var(--half-size)); }
+        .cube__face--left   { background: linear-gradient(135deg, #f1c40f, #f39c12); transform: rotateY(-90deg) translateZ(var(--half-size)); }
+        .cube__face--top    { background: linear-gradient(135deg, #9b59b6, #8e44ad); transform: rotateX(90deg) translateZ(var(--half-size)); }
+        .cube__face--bottom { background: linear-gradient(135deg, #34495e, #2c3e50); transform: rotateX(-90deg) translateZ(var(--half-size)); }
+
+        /* Subtle Glow/Highlight Effect */
+        .cube__face::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease-out;
+            border-radius: inherit;
+        }
+
+        /* Hover Effects - slight lift and glow */
+        .cube__face:hover {
+            /* transform: translateZ(calc(var(--half-size) + 20px)) scale(1.05); */ /* Lift effect needs JS adjustment for rotation */
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8),
+                        inset 0 0 30px rgba(0,0,0,0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .cube__face:hover::before {
+             opacity: 1;
+        }
+
+        /* Animation Controls */
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(5px);
+            z-index: 5;
+        }
+        .controls button {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: var(--text-color);
+            padding: 8px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            opacity: 0.8;
+        }
+        .controls button:hover {
+             background: rgba(255, 255, 255, 0.1);
+             border-color: white;
+             opacity: 1;
+        }
+         .controls button.active {
+             background: rgba(255, 255, 255, 0.2);
+             border-color: white;
+             opacity: 1;
+         }
+
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .title { font-size: 1.8rem; top: 20px; }
+            :root {
+                --cube-size: var(--cube-size-small);
+                --half-size: var(--half-size-small);
+                --perspective: var(--perspective-small);
+            }
+            .cube__face { font-size: 1.1rem; border-radius: 10px; }
+             .cube__face svg { width: 25%; height: 25%; margin-bottom: 10px; }
+            .controls { bottom: 15px; }
+             .controls button { padding: 6px 12px; font-size: 0.8rem; }
+        }
+        @media (max-height: 500px) { /* Adjust for short screens */
+             .title { top: 10px; font-size: 1.5rem;}
+             .controls { bottom: 10px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="title">इंटरैक्टिव 3D क्यूब</div>
+
+    <div class="scene" id="scene">
+        <div class="cube" id="cube">
+            <div class="cube__face cube__face--front">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.3l8 4v8l-8 4-8-4v-8l8-4z"/></svg>
+                Front
+            </div>
+            <div class="cube__face cube__face--back">
+                 <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 17.7l-8-4V9l8-4 8 4v8l-8 4z"/></svg> <!-- Flipped -->
+                Back
+            </div>
+            <div class="cube__face cube__face--right">
+                <svg viewBox="0 0 24 24"><path d="M22 12l-10 5V7l10 5zM10 7v10l-8-5 8-5z"/></svg>
+                Right
+            </div>
+            <div class="cube__face cube__face--left">
+                <svg viewBox="0 0 24 24"><path d="M2 12l10-5v10l-10-5zm12 5V7l8 5-8 5z"/></svg> <!-- Flipped -->
+                Left
+            </div>
+            <div class="cube__face cube__face--top">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5L12 2zm0 13l-8-4 8-5 8 5-8 4z"/></svg>
+                Top
+            </div>
+            <div class="cube__face cube__face--bottom">
+                <svg viewBox="0 0 24 24"><path d="M12 22l10-5-10-5-10 5 10 5zm0-13l8-4-8-5-8 5 8 4z"/></svg> <!-- Flipped -->
+                Bottom
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="toggleAnimationBtn" class="active">Pause</button>
+        <button id="resetViewBtn">Reset</button>
+    </div>
+
+    <script>
+        const scene = document.getElementById('scene');
+        const cube = document.getElementById('cube');
+        const toggleBtn = document.getElementById('toggleAnimationBtn');
+        const resetBtn = document.getElementById('resetViewBtn');
+
+        let isDragging = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+        let currentRotationX = -20; // Initial tilt
+        let currentRotationY = -30; // Initial rotation
+        let autoRotateX = 0.05; // Degrees per frame
+        let autoRotateY = 0.1;  // Degrees per frame
+        let isAutoRotating = true;
+        let inertiaX = 0;
+        let inertiaY = 0;
+        const inertiaFactor = 0.95; // Damping factor (0 to 1)
+        let animationFrameId = null;
+
+
+        // --- Auto Rotation & Inertia ---
+        function animateCube() {
+            if (!isDragging) {
+                if (isAutoRotating) {
+                    currentRotationX += autoRotateX;
+                    currentRotationY += autoRotateY;
+                } else {
+                    // Apply inertia
+                    currentRotationX += inertiaX;
+                    currentRotationY += inertiaY;
+                    // Dampen inertia
+                    inertiaX *= inertiaFactor;
+                    inertiaY *= inertiaFactor;
+                    // Stop inertia if very small
+                    if (Math.abs(inertiaX) < 0.01) inertiaX = 0;
+                    if (Math.abs(inertiaY) < 0.01) inertiaY = 0;
+                }
+            }
+
+             // Keep rotation within reasonable bounds to prevent extreme flipping (optional)
+             currentRotationX = Math.max(-85, Math.min(85, currentRotationX));
+
+            // Apply rotation using translateZ to keep faces correct distance
+            // Using direct style manipulation for smoother updates than adding/removing classes
+            cube.style.transform = `rotateX(${currentRotationX}deg) rotateY(${currentRotationY}deg)`;
+
+            animationFrameId = requestAnimationFrame(animateCube);
+        }
+
+        // --- Mouse Drag Interaction ---
+        function onMouseDown(event) {
+            isDragging = true;
+            isAutoRotating = false; // Stop auto-rotate on drag
+            toggleBtn.textContent = 'Play';
+            toggleBtn.classList.remove('active');
+            previousMouseX = event.clientX || event.touches[0].clientX;
+            previousMouseY = event.clientY || event.touches[0].clientY;
+            inertiaX = 0; // Reset inertia on new drag
+            inertiaY = 0;
+            cube.style.transition = 'transform 0.05s linear'; // Faster transition during drag
+            scene.style.cursor = 'grabbing';
+            cancelAnimationFrame(animationFrameId); // Stop animation loop while dragging manually
+        }
+
+        function onMouseMove(event) {
+            if (!isDragging) return;
+
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+
+            const deltaX = clientX - previousMouseX;
+            const deltaY = clientY - previousMouseY;
+
+            // Adjust rotation based on mouse movement - slower sensitivity
+            const rotateSpeed = 0.3;
+            currentRotationY += deltaX * rotateSpeed;
+            currentRotationX -= deltaY * rotateSpeed; // Invert Y-axis rotation
+
+             // Keep rotation within reasonable bounds
+             currentRotationX = Math.max(-85, Math.min(85, currentRotationX));
+
+
+            // Apply transformation immediately for responsiveness
+            cube.style.transform = `rotateX(${currentRotationX}deg) rotateY(${currentRotationY}deg)`;
+
+            // Calculate inertia for smooth release
+            inertiaY = deltaX * rotateSpeed * 1.5; // Multiply for a stronger flick
+            inertiaX = -deltaY * rotateSpeed * 1.5;
+
+            previousMouseX = clientX;
+            previousMouseY = clientY;
+        }
+
+        function onMouseUp() {
+            if (!isDragging) return;
+            isDragging = false;
+            cube.style.transition = 'transform 0.1s linear'; // Back to smoother default
+            scene.style.cursor = 'grab';
+            // Restart animation loop to apply inertia/auto-rotate
+            if (animationFrameId) cancelAnimationFrame(animationFrameId); // Ensure no duplicates
+             animationFrameId = requestAnimationFrame(animateCube);
+        }
+
+        function onMouseLeave() {
+             // Optionally stop dragging if mouse leaves the scene area
+            // if (isDragging) {
+            //    onMouseUp();
+            // }
+        }
+
+        // --- Control Button ---
+        function toggleAnimation() {
+            isAutoRotating = !isAutoRotating;
+            toggleBtn.textContent = isAutoRotating ? 'Pause' : 'Play';
+            toggleBtn.classList.toggle('active', isAutoRotating);
+            // If starting auto-rotation, reset inertia
+            if (isAutoRotating) {
+                inertiaX = 0;
+                inertiaY = 0;
+            }
+             // Ensure animation loop is running if we switch state
+            if (!animationFrameId) {
+                 animationFrameId = requestAnimationFrame(animateCube);
+            }
+        }
+
+        function resetView() {
+            isAutoRotating = false; // Stop auto-rotation
+            isDragging = false; // Ensure dragging stops
+             toggleBtn.textContent = 'Play';
+             toggleBtn.classList.remove('active');
+             inertiaX = 0;
+             inertiaY = 0;
+             cube.style.transition = 'transform 0.5s ease-out'; // Smooth transition to reset
+             currentRotationX = -20; // Reset to initial values
+             currentRotationY = -30;
+             cube.style.transform = `rotateX(${currentRotationX}deg) rotateY(${currentRotationY}deg)`;
+             // Restart animation loop after transition
+             setTimeout(() => {
+                 cube.style.transition = 'transform 0.1s linear'; // Back to default transition
+                  if (!animationFrameId) {
+                     animationFrameId = requestAnimationFrame(animateCube);
+                  }
+             }, 500);
+        }
+
+        // --- Event Listeners ---
+        scene.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove); // Listen on document for smooth dragging outside scene
+        document.addEventListener('mouseup', onMouseUp);    // Listen on document
+        scene.addEventListener('mouseleave', onMouseLeave);
+
+        // Touch events for mobile
+        scene.addEventListener('touchstart', onMouseDown, { passive: false }); // Use passive: false if you might preventDefault
+        document.addEventListener('touchmove', onMouseMove, { passive: false });
+        document.addEventListener('touchend', onMouseUp);
+
+        toggleBtn.addEventListener('click', toggleAnimation);
+        resetBtn.addEventListener('click', resetView);
+
+
+        // --- Initial Animation Start ---
+        animateCube();
+
+    </script>
+</body>
+</html>
